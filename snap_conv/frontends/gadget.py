@@ -12,8 +12,8 @@ class GadgetFrontend(Hdf5Frontend):
 
     units = dict(
         mass=1e10 * u.Msun / h,
-        length=u.kpc,
-        velocity=1e3 * u.km / u.s,
+        length=u.kpc / h,
+        velocity=u.km / u.s,
     )
     units["time"] = units["length"] / units["velocity"]
 
