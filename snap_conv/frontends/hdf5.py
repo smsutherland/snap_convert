@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractclassmethod, abstractmethod
 from typing import Any, Dict, Optional
 
 import h5py
@@ -121,6 +121,10 @@ class Hdf5Frontend(ABC):
 
     def __repr__(self) -> str:
         return str(self)
+
+    @classmethod
+    @abstractmethod
+    def write(cls, source, fname): ...
 
 
 def _make_getter(fname: str, group: str, key: str):

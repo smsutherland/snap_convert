@@ -10,9 +10,15 @@ _units = [u.Ampere, u.cm, u.g, u.K, u.s]
 class SwiftFrontend(Hdf5Frontend):
     def _make_aliases(self):
         self.gas.alias("Density", "Densities")
-        self.gas.alias("Mass", "Masses")
         self.gas.alias("SmoothingLength", "SmoothingLengths")
         self.gas.alias("StarFormationRate", SwiftFrontend.sanitize_sfr)
+        self.gas.alias("InternalEnergy", "InternalEnergies")
+        self.stars.alias("SmoothingLength", "SmoothingLengths")
+        self.stars.alias("InitialMass", "InitialMasses")
+        self.stars.alias("StellarFormationTime", "BirthScaleFactors")
+        self.black_holes.alias("Masses", "SubgridMasses")
+        self.black_holes.alias("SmoothingLength", "SmoothingLengths")
+        self.black_holes.alias("Mdot", "AccretionRates")
 
     def sanitize_sfr(self):
         if (data := self.gas.check_cache("StarFormationRate")) is not None:
@@ -67,3 +73,7 @@ class SwiftFrontend(Hdf5Frontend):
 
     def __str__(self) -> str:
         return "SWIFT " + super().__str__()
+
+    @classmethod
+    def write(cls, source, fname):
+        pass

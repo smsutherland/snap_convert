@@ -1,6 +1,8 @@
+from pathlib import Path
 import h5py
 import numpy as np
 import unyt as u
+import subprocess
 
 from .hdf5 import Hdf5Frontend
 from .header import Header
@@ -85,6 +87,95 @@ class GadgetFrontend(Hdf5Frontend):
                 Omega_m=Omega_m,
                 Omega_Lambda=Omega_Lambda,
             )
+
+    @classmethod
+    def write(cls, source, fname):
+        with h5py.File(fname, "w") as f:
+            header = f.create_group("Header").attrs
+            header["BoxSize"] = source.header.box_size[0].to(u.kpc)
+            header["HubbleParam"] = source.header.h
+            header["NumFilesPerSnapshot"] = 1
+            header["NumPart_ThisFile"] = source.header.num_part
+            header["NumPart_Total"] = source.header.num_part
+            header["NumPart_Total_HighWord"] = np.zeros_like(source.header.num_part)
+            header["Omega0"] = source.header.Omega_m
+            header["OmegaLambda"] = source.header.Omega_Lambda
+            header["Redshift"] = source.header.redshift
+            header["Time"] = source.header.scale
+
+            git_version = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent
+            )
+            header["snap_conv_version"] = git_version
+
+            fields = [
+                "ParticleIDs",
+                "Coordinates",
+                "StarFormationRate",
+                "Masses",
+                "InternalEnergy",
+                "Density",
+                "Velocities",
+                "SmoothingLength",
+            ]
+            bhs = f.create_group("PartType0")
+            bh_units = GadgetFrontend.field_units["PartType0"]
+            for name in fields:
+                data = getattr(source.gas, name)
+                unit = bh_units.get(name)
+                if unit is not None:
+                    data = data.to(unit)
+                bhs[name] = data
+
+            fields = [
+                "ParticleIDs",
+                "Coordinates",
+                "Masses",
+                "Velocities",
+            ]
+            bhs = f.create_group("PartType1")
+            bh_units = GadgetFrontend.field_units["PartType1"]
+            for name in fields:
+                data = getattr(source.dark_matter, name)
+                unit = bh_units.get(name)
+                if unit is not None:
+                    data = data.to(unit)
+                bhs[name] = data
+
+            fields = [
+                "ParticleIDs",
+                "Coordinates",
+                "Masses",
+                "Velocities",
+                "SmoothingLength",
+                "InitialMass",
+                "StellarFormationTime",
+            ]
+            bhs = f.create_group("PartType4")
+            bh_units = GadgetFrontend.field_units["PartType4"]
+            for name in fields:
+                data = getattr(source.stars, name)
+                unit = bh_units.get(name)
+                if unit is not None:
+                    data = data.to(unit)
+                bhs[name] = data
+
+            fields = [
+                "ParticleIDs",
+                "Coordinates",
+                "Masses",
+                "Velocities",
+                "SmoothingLength",
+                "Mdot",
+            ]
+            bhs = f.create_group("PartType5")
+            bh_units = GadgetFrontend.field_units["PartType5"]
+            for name in fields:
+                data = getattr(source.black_holes, name)
+                unit = bh_units.get(name)
+                if unit is not None:
+                    data = data.to(unit)
+                bhs[name] = data
 
     def __str__(self) -> str:
         return "GADGET " + super().__str__()
