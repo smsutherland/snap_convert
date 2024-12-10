@@ -5,8 +5,8 @@ build-backend = "hatchling.build"
 [project]
 name = "snap-conv"
 dynamic = ["version"]
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = []
 
 [tool.hatch.version]
-path = "snap_convert/__init__.py"
+path = "snap_conv/__init__.py"
