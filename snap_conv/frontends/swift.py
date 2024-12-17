@@ -1,5 +1,8 @@
 import h5py
+import numpy as np
 import unyt as u
+
+from snap_conv.util import git_version
 
 from .hdf5 import Hdf5Frontend
 from .header import Header
@@ -42,6 +45,55 @@ class SwiftFrontend(Hdf5Frontend):
                 return None
             return factor * unit
 
+    @classmethod
+    def _get_output_unit(cls, group, key):
+        units = dict(
+            mass=1e10 * u.Msun,
+            length=u.Mpc,
+            velocity=u.km / u.s,
+        )
+        units["time"] = units["length"] / units["velocity"]
+
+        gas_units = dict(
+            Coordinates=units["length"],
+            StarFormationRate=u.Msun / u.yr,
+            Masses=units["mass"],
+            InternalEnergy=units["velocity"] ** 2,
+            Density=units["mass"] / units["length"] ** 3,
+            Velocities=units["velocity"],
+            SmoothingLength=units["length"],
+        )
+        dm_units = dict(
+            Coordinates=units["length"],
+            Masses=units["mass"],
+            Velocities=units["velocity"],
+        )
+        star_units = dict(
+            Coordinates=units["length"],
+            Masses=units["mass"],
+            Velocities=units["velocity"],
+            SmoothingLength=units["length"],
+            InitialMass=units["mass"],
+        )
+        bh_units = dict(
+            Coordinates=units["length"],
+            Masses=units["mass"],
+            Velocities=units["velocity"],
+            SmoothingLength=units["length"],
+            Mdot=units["mass"] / units["time"],
+        )
+        field_units = dict(
+            PartType0=gas_units,
+            PartType1=dm_units,
+            PartType4=star_units,
+            PartType5=bh_units,
+        )
+
+        if group in field_units:
+            if key in field_units[group]:
+                return field_units[group][key]
+        return None
+
     def load_header(self):
         with h5py.File(self.fname) as f:
             header = f["Header"].attrs
@@ -76,4 +128,173 @@ class SwiftFrontend(Hdf5Frontend):
 
     @classmethod
     def write(cls, source, fname):
-        pass
+        with h5py.File(fname, "w") as f:
+            header = f.create_group("Header").attrs
+            header["BoxSize"] = source.header.box_size.to(u.Mpc)
+            header["NumFilesPerSnapshot"] = 1
+            header["NumPart_ThisFile"] = source.header.num_part
+            header["NumPart_Total"] = source.header.num_part
+            header["NumPart_Total_HighWord"] = np.zeros_like(source.header.num_part)
+            header["Time"] = source.header.scale
+            header["Redshift"] = [source.header.redshift]
+            header["Scale-factor"] = [source.header.scale]
+            header["snap_conv_version"] = git_version
+
+            cosmo = f.create_group("Cosmology").attrs
+            cosmo["H0 [internal units]"] = [source.header.H.to(u.km / u.s / u.Mpc)]
+            cosmo["Omega_b"] = [source.header.Omega_b]
+            cosmo["Omega_cdm"] = [source.header.Omega_cdm]
+            cosmo["Omega_lambda"] = [source.header.Omega_Lambda]
+            cosmo["Omega_m"] = [source.header.Omega_m]
+            cosmo["Redshift"] = [source.header.redshift]
+            cosmo["Scale-factor"] = [source.header.scale]
+            cosmo["h"] = [source.header.h]
+
+            fields = [
+                ("ParticleIDs",),
+                ("Coordinates",),
+                ("StarFormationRates", "StarFormationRate"),
+                ("Masses",),
+                ("InternalEnergies", "InternalEnergy"),
+                ("Densities", "Density"),
+                ("Velocities",),
+                ("SmoothingLengths", "SmoothingLength"),
+            ]
+            gas = f.create_group("PartType0")
+            for names in fields:
+                name = names[0]
+                for n in names:
+                    if hasattr(source.gas, n):
+                        data = getattr(source.gas, name)
+                        unit = cls._get_output_unit("PartType5", name)
+                        if unit is not None:
+                            data = data.to(unit)
+                        gas[name] = data
+                        if unit is not None:
+                            gas[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [
+                                unit.get_conversion_factor(unit.get_cgs_equivalent())[0]
+                            ]
+                        else:
+                            gas[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [1.0]
+                        break
+            fields = [
+                ("ParticleIDs",),
+                ("Coordinates",),
+                ("Masses",),
+                ("Velocities",),
+                ("SmoothingLengths", "SmoothingLength"),
+                ("InitialMasses", "InitialMass"),
+                ("BirthScaleFactors", "StellarFormationTime"),
+            ]
+            stars = f.create_group("PartType4")
+            for names in fields:
+                name = names[0]
+                for n in names:
+                    if hasattr(source.gas, n):
+                        data = getattr(source.gas, name)
+                        unit = cls._get_output_unit("PartType5", name)
+                        if unit is not None:
+                            data = data.to(unit)
+                        stars[name] = data
+                        if unit is not None:
+                            stars[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [
+                                unit.get_conversion_factor(unit.get_cgs_equivalent())[0]
+                            ]
+                        else:
+                            stars[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [1.0]
+                        break
+            fields = [
+                ("ParticleIDs",),
+                ("Coordinates",),
+                ("Masses",),
+                ("Velocities",),
+            ]
+            dm = f.create_group("PartType1")
+            for names in fields:
+                name = names[0]
+                for n in names:
+                    if hasattr(source.gas, n):
+                        data = getattr(source.gas, name)
+                        unit = cls._get_output_unit("PartType5", name)
+                        if unit is not None:
+                            data = data.to(unit)
+                        dm[name] = data
+                        if unit is not None:
+                            dm[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [
+                                unit.get_conversion_factor(unit.get_cgs_equivalent())[0]
+                            ]
+                        else:
+                            dm[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [1.0]
+                        break
+            fields = [
+                ("ParticleIDs",),
+                ("Coordinates",),
+                ("Masses",),
+                ("Velocities",),
+                ("SmoothingLengths", "SmoothingLength"),
+                ("InitialMasses", "InitialMass"),
+                ("BirthScaleFactors", "StellarFormationTime"),
+            ]
+            stars = f.create_group("PartType4")
+            for names in fields:
+                name = names[0]
+                for n in names:
+                    if hasattr(source.gas, n):
+                        data = getattr(source.gas, name)
+                        unit = cls._get_output_unit("PartType5", name)
+                        if unit is not None:
+                            data = data.to(unit)
+                        stars[name] = data
+                        if unit is not None:
+                            stars[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [
+                                unit.get_conversion_factor(unit.get_cgs_equivalent())[0]
+                            ]
+                        else:
+                            stars[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [1.0]
+                        break
+
+            fields = [
+                ("ParticleIDs",),
+                ("Coordinates",),
+                ("Masses",),
+                ("Velocities",),
+                ("SmoothingLengths", "SmoothingLength"),
+                ("AccretionRates", "Mdot"),
+            ]
+            bhs = f.create_group("PartType5")
+            for names in fields:
+                name = names[0]
+                for n in names:
+                    if hasattr(source.gas, n):
+                        data = getattr(source.gas, name)
+                        unit = cls._get_output_unit("PartType5", name)
+                        if unit is not None:
+                            data = data.to(unit)
+                        bhs[name] = data
+                        if unit is not None:
+                            bhs[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [
+                                unit.get_conversion_factor(unit.get_cgs_equivalent())[0]
+                            ]
+                        else:
+                            bhs[name].attrs[
+                                "Conversion factor to CGS (not including cosmological corrections)"
+                            ] = [1.0]
+                        break

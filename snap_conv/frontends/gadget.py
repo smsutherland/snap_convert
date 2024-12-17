@@ -6,6 +6,7 @@ import subprocess
 
 from .hdf5 import Hdf5Frontend
 from .header import Header
+from snap_conv.util import git_version
 
 
 class GadgetFrontend(Hdf5Frontend):
@@ -60,6 +61,13 @@ class GadgetFrontend(Hdf5Frontend):
                 return self.field_units[group][key]
         return None
 
+    @classmethod
+    def _get_output_unit(cls, group, key):
+        if group in cls.field_units:
+            if key in cls.field_units[group]:
+                return cls.field_units[group][key]
+        return None
+
     def load_header(self):
         with h5py.File(self.fname) as f:
             header = f["Header"].attrs
@@ -103,9 +111,6 @@ class GadgetFrontend(Hdf5Frontend):
             header["Redshift"] = source.header.redshift
             header["Time"] = source.header.scale
 
-            git_version = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent
-            )
             header["snap_conv_version"] = git_version
 
             fields = [
@@ -118,14 +123,13 @@ class GadgetFrontend(Hdf5Frontend):
                 "Velocities",
                 "SmoothingLength",
             ]
-            bhs = f.create_group("PartType0")
-            bh_units = GadgetFrontend.field_units["PartType0"]
+            gas = f.create_group("PartType0")
             for name in fields:
                 data = getattr(source.gas, name)
-                unit = bh_units.get(name)
+                unit = cls._get_output_unit("PartType0", name)
                 if unit is not None:
                     data = data.to(unit)
-                bhs[name] = data
+                gas[name] = data
 
             fields = [
                 "ParticleIDs",
@@ -133,14 +137,13 @@ class GadgetFrontend(Hdf5Frontend):
                 "Masses",
                 "Velocities",
             ]
-            bhs = f.create_group("PartType1")
-            bh_units = GadgetFrontend.field_units["PartType1"]
+            dm = f.create_group("PartType1")
             for name in fields:
                 data = getattr(source.dark_matter, name)
-                unit = bh_units.get(name)
+                unit = cls._get_output_unit("PartType1", name)
                 if unit is not None:
                     data = data.to(unit)
-                bhs[name] = data
+                dm[name] = data
 
             fields = [
                 "ParticleIDs",
@@ -151,14 +154,13 @@ class GadgetFrontend(Hdf5Frontend):
                 "InitialMass",
                 "StellarFormationTime",
             ]
-            bhs = f.create_group("PartType4")
-            bh_units = GadgetFrontend.field_units["PartType4"]
+            stars = f.create_group("PartType4")
             for name in fields:
                 data = getattr(source.stars, name)
-                unit = bh_units.get(name)
+                unit = cls._get_output_unit("PartType4", name)
                 if unit is not None:
                     data = data.to(unit)
-                bhs[name] = data
+                stars[name] = data
 
             fields = [
                 "ParticleIDs",
@@ -169,10 +171,9 @@ class GadgetFrontend(Hdf5Frontend):
                 "Mdot",
             ]
             bhs = f.create_group("PartType5")
-            bh_units = GadgetFrontend.field_units["PartType5"]
             for name in fields:
                 data = getattr(source.black_holes, name)
-                unit = bh_units.get(name)
+                unit = cls._get_output_unit("PartType5", name)
                 if unit is not None:
                     data = data.to(unit)
                 bhs[name] = data
