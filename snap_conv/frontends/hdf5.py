@@ -1,15 +1,23 @@
-from abc import ABC, abstractclassmethod, abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
 import h5py
 import unyt as u
+from _typeshed import StrOrBytesPath
+
+from .header import Header
 
 _particle_names = ["gas", "dark_matter", None, None, "stars", "black_holes"]
 _particle_class_names = ["Gas", "DarkMatter", None, None, "Stars", "BlackHoles"]
 
 
 class Hdf5Frontend(ABC):
-    def __init__(self, fname, cache_size: Optional[int] = 1024**3):
+    fname: StrOrBytesPath
+    cache_size: Optional[int]
+    header: Header
+    load_num: int
+
+    def __init__(self, fname: StrOrBytesPath, cache_size: Optional[int] = 1024**3):
         self.fname = fname
         self.cache_size = cache_size
 
@@ -31,11 +39,11 @@ class Hdf5Frontend(ABC):
                     setattr(self, name, value)
 
     @abstractmethod
-    def load_header(self): ...
+    def load_header(self) -> Header: ...
 
     def _load_particles(
         self,
-        fname: str,
+        fname: StrOrBytesPath,
         dataset,
         group: str,
         ptype_name: str,
@@ -126,8 +134,11 @@ class Hdf5Frontend(ABC):
     @abstractmethod
     def write(cls, source, fname): ...
 
+    def write_as(self, target, fname):
+        target.write(self, fname)
 
-def _make_getter(fname: str, group: str, key: str):
+
+def _make_getter(fname: StrOrBytesPath, group: str, key: str):
     def getter(self):
         if (data := self.check_cache(key)) is not None:
             return data
