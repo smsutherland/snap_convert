@@ -7,8 +7,6 @@ from _typeshed import StrOrBytesPath
 
 from .header import Header
 
-from .header import Header
-
 _particle_names = ["gas", "dark_matter", None, None, "stars", "black_holes"]
 _particle_class_names = ["Gas", "DarkMatter", None, None, "Stars", "BlackHoles"]
 
