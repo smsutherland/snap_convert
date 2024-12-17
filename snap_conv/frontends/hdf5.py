@@ -1,23 +1,24 @@
+import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import h5py
 import unyt as u
-from _typeshed import StrOrBytesPath
 
 from .header import Header
 
+StrPath = Union[str, bytes, os.PathLike]
 _particle_names = ["gas", "dark_matter", None, None, "stars", "black_holes"]
 _particle_class_names = ["Gas", "DarkMatter", None, None, "Stars", "BlackHoles"]
 
 
 class Hdf5Frontend(ABC):
-    fname: StrOrBytesPath
+    fname: StrPath
     cache_size: Optional[int]
     header: Header
     load_num: int
 
-    def __init__(self, fname: StrOrBytesPath, cache_size: Optional[int] = 1024**3):
+    def __init__(self, fname: StrPath, cache_size: Optional[int] = 1024**3):
         self.fname = fname
         self.cache_size = cache_size
 
@@ -43,7 +44,7 @@ class Hdf5Frontend(ABC):
 
     def _load_particles(
         self,
-        fname: StrOrBytesPath,
+        fname: StrPath,
         dataset,
         group: str,
         ptype_name: str,
@@ -125,7 +126,7 @@ class Hdf5Frontend(ABC):
     def _get_unit(self, group, key): ...
 
     def __str__(self) -> str:
-        return f"Dataset at {self.fname}"
+        return f"Dataset at {self.fname!r}"
 
     def __repr__(self) -> str:
         return str(self)
@@ -138,7 +139,7 @@ class Hdf5Frontend(ABC):
         target.write(self, fname)
 
 
-def _make_getter(fname: StrOrBytesPath, group: str, key: str):
+def _make_getter(fname: StrPath, group: str, key: str):
     def getter(self):
         if (data := self.check_cache(key)) is not None:
             return data
